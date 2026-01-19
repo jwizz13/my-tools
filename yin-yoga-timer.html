@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Yin Timer">
+  <title>Yin Yoga Timer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: white;
+      min-height: 100vh;
+      padding: 16px;
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+    .container { max-width: 400px; margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 300; margin-bottom: 8px; }
+    h2 { font-size: 28px; font-weight: 300; margin-bottom: 16px; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+    .series-btn {
+      width: 100%; padding: 16px; margin-bottom: 12px;
+      background: #1e293b; border: none; border-radius: 12px;
+      color: white; text-align: left; cursor: pointer;
+    }
+    .series-btn:active { background: #334155; }
+    .series-name { font-size: 18px; font-weight: 500; }
+    .series-info { font-size: 14px; color: #94a3b8; margin-top: 4px; }
+    .series-focus { font-size: 12px; color: #14b8a6; margin-top: 4px; }
+    .timer-view { display: flex; flex-direction: column; min-height: calc(100vh - 32px); }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .back-btn, .settings-btn {
+      background: none; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; padding: 8px;
+    }
+    .pose-counter { color: #94a3b8; font-size: 14px; }
+    .current-series { text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 8px; }
+    .timer-main { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+    .pose-name { font-size: 28px; font-weight: 300; margin-bottom: 16px; }
+    .time-display { font-size: 72px; font-weight: 200; font-family: 'SF Mono', Monaco, monospace; margin-bottom: 16px; }
+    .progress-bar { width: 100%; height: 8px; background: #334155; border-radius: 4px; margin-bottom: 16px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #14b8a6; transition: width 1s linear; }
+    .pose-desc { color: #94a3b8; font-size: 16px; padding: 0 16px; margin-bottom: 24px; line-height: 1.5; }
+    .next-pose { color: #64748b; font-size: 14px; }
+    .controls { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 24px 0; }
+    .control-btn {
+      width: 56px; height: 56px; border-radius: 50%; border: none;
+      background: #334155; color: white; font-size: 20px; cursor: pointer;
+    }
+    .control-btn:disabled { opacity: 0.3; }
+    .play-btn { width: 80px; height: 80px; background: #14b8a6; font-size: 28px; }
+    .pose-dots { display: flex; justify-content: center; gap: 4px; padding-bottom: 16px; flex-wrap: wrap; }
+    .pose-dot { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+    .pose-dot.completed { background: #14b8a6; }
+    .pose-dot.current { background: #5eead4; }
+    .settings-panel { padding: 24px 0; }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .toggle { width: 56px; height: 32px; border-radius: 16px; border: none; background: #334155; cursor: pointer; position: relative; }
+    .toggle.on { background: #14b8a6; }
+    .toggle-knob {
+      width: 24px; height: 24px; border-radius: 50%; background: white;
+      position: absolute; top: 4px; left: 4px; transition: transform 0.2s;
+    }
+    .toggle.on .toggle-knob { transform: translateX(24px); }
+    .done-btn {
+      width: 100%; padding: 16px; margin-top: 32px;
+      background: #334155; border: none; border-radius: 12px;
+      color: white; font-size: 16px; cursor: pointer;
+    }
+    .credit { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Menu View -->
+    <div id="menu-view">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1>Yin Yoga Timer</h1>
+        <button class="settings-btn" onclick="showSettings()">⚙️</button>
+      </div>
+      <p class="subtitle">5 minutes per pose. Select a series to begin.</p>
+      <div id="series-list"></div>
+      <p class="credit">Based on Bernie Clark's Yin Yoga methodology</p>
+    </div>
+
+    <!-- Timer View -->
+    <div id="timer-view" class="timer-view hidden">
+      <div class="header">
+        <button class="back-btn" onclick="resetTimer()">← Back</button>
+        <span class="pose-counter" id="pose-counter"></span>
+        <button class="settings-btn" onclick="showSettings()">⚙️</button>
+      </div>
+      <div class="current-series" id="current-series"></div>
+      <div class="timer-main">
+        <h2 class="pose-name" id="pose-name"></h2>
+        <div class="time-display" id="time-display">5:00</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <p class="pose-desc" id="pose-desc"></p>
+        <p class="next-pose" id="next-pose"></p>
+      </div>
+      <div class="controls">
+        <button class="control-btn" id="prev-btn" onclick="prevPose()">⏮</button>
+        <button class="control-btn play-btn" id="play-btn" onclick="togglePlay()">▶</button>
+        <button class="control-btn" id="next-btn" onclick="skipPose()">⏭</button>
+      </div>
+      <div class="pose-dots" id="pose-dots"></div>
+    </div>
+
+    <!-- Settings View -->
+    <div id="settings-view" class="hidden">
+      <h2>Settings</h2>
+      <div class="settings-panel">
+        <div class="setting-row">
+          <span>Sound Alerts</span>
+          <button class="toggle" id="sound-toggle" onclick="toggleSound()">
+            <div class="toggle-knob"></div>
+          </button>
+        </div>
+        <div class="setting-row">
+          <span>Vibration</span>
+          <button class="toggle" id="vibration-toggle" onclick="toggleVibration()">
+            <div class="toggle-knob"></div>
+          </button>
+        </div>
+        <button class="done-btn" onclick="hideSettings()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // All series data
+    const allSeries = {
+      'Yin Yoga': {
+        duration: 68, focus: 'Full body flow with toe warm-up, straddles, backbends, dragons, twists',
+        poses: [
+          { name: 'On Knees Toes Tucked', duration: 0.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 0.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'On Knees Toes Tucked', duration: 0.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 0.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'On Knees Toes Tucked', duration: 1.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 1.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'Long Legged Butterfly', duration: 5, description: 'Seated with soles together, legs extended long. Fold forward.' },
+          { name: 'Straddle Fold Left', duration: 5, description: 'Wide legs, fold toward left leg.' },
+          { name: 'Straddle Fold Right', duration: 5, description: 'Wide legs, fold toward right leg.' },
+          { name: 'Straddle Fold Middle', duration: 5, description: 'Wide legs, fold forward to center.' },
+          { name: 'Sphinx', duration: 5, description: 'Forearms down, gentle backbend.' },
+          { name: 'Seal', duration: 5, description: 'Hands down, deeper backbend.' },
+          { name: 'Child', duration: 2, description: 'Rest forehead down, knees wide or together.' },
+          { name: 'Low Dragon Left', duration: 2.5, description: 'Left foot forward, low lunge, sink hips.' },
+          { name: 'Dragon Hands on Left Knee', duration: 2.5, description: 'Hands on left knee, lift chest.' },
+          { name: 'Wide Dragon', duration: 2.5, description: 'Hands inside left foot, sink hips.' },
+          { name: 'Wide Dragon Knee Left to Ground', duration: 2.5, description: 'Let left knee fall out to the side.' },
+          { name: 'Downward Dog', duration: 1, description: 'Hands and feet down, hips high. Transition.' },
+          { name: 'Low Dragon Right', duration: 2.5, description: 'Right foot forward, low lunge, sink hips.' },
+          { name: 'Dragon Hands on Right Knee', duration: 2.5, description: 'Hands on right knee, lift chest.' },
+          { name: 'Wide Dragon', duration: 2.5, description: 'Hands inside right foot, sink hips.' },
+          { name: 'Wide Dragon Knee Right to Ground', duration: 2.5, description: 'Let right knee fall out to the side.' },
+          { name: 'Downward Dog', duration: 1, description: 'Hands and feet down, hips high. Transition.' },
+          { name: 'Twist Right', duration: 3, description: 'On back, wrap legs left over right, let knees fall right.' },
+          { name: 'Twist Left', duration: 3, description: 'On back, wrap legs right over left, let knees fall left.' },
+          { name: 'Savasana', duration: 3, description: 'Final rest. Complete relaxation.' }
+        ]
+      },
+      'Happy Yin Happy Hips': {
+        duration: 59, focus: 'Hip openers with shoelace, pigeon, hurdlers, and twists',
+        poses: [
+          { name: 'On Knees Toes Tucked', duration: 0.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 0.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'On Knees Toes Tucked', duration: 0.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 0.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'On Knees Toes Tucked', duration: 1.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 1.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'Long Legged Butterfly', duration: 5, description: 'Seated with soles together, legs extended long. Fold forward.' },
+          { name: 'Shoelace Right Over Left Twist Right', duration: 1, description: 'Stack right knee over left, twist to the right.' },
+          { name: 'Shoelace Right Over Left Fold Forward', duration: 4, description: 'Stack right knee over left, fold forward.' },
+          { name: 'Half Pigeon Right Leg Back Chest Up', duration: 1, description: 'Right leg back, left shin forward, chest lifted.' },
+          { name: 'Half Pigeon Right Leg Back Fold Forward', duration: 4, description: 'Right leg back, left shin forward, fold over front leg.' },
+          { name: 'Shoelace Left Over Right Twist Left', duration: 1, description: 'Stack left knee over right, twist to the left.' },
+          { name: 'Shoelace Left Over Right Fold Forward', duration: 4, description: 'Stack left knee over right, fold forward.' },
+          { name: 'Half Pigeon Left Leg Back Chest Up', duration: 1, description: 'Left leg back, right shin forward, chest lifted.' },
+          { name: 'Half Pigeon Left Leg Back Fold Forward', duration: 4, description: 'Left leg back, right shin forward, fold over front leg.' },
+          { name: 'Downward Dog', duration: 1, description: 'Hands and feet down, hips high. Transition.' },
+          { name: 'On Knees Full Layback', duration: 5, description: 'Kneel and lean all the way back. Prop as needed.' },
+          { name: 'Hurdler Stretch Right', duration: 5, description: 'Right leg extended, left foot to inner thigh, fold over right.' },
+          { name: 'Hurdler Stretch Left', duration: 5, description: 'Left leg extended, right foot to inner thigh, fold over left.' },
+          { name: 'Twist Right', duration: 5, description: 'On back, left leg over right, let knees fall right.' },
+          { name: 'Twist Left', duration: 5, description: 'On back, right leg over left, let knees fall left.' },
+          { name: 'Savasana', duration: 3, description: 'Final rest. Complete relaxation.' }
+        ]
+      },
+      'The Yin Side of Letting Go': {
+        duration: 60, focus: 'Spine work, shoelace, pigeon, and deep twists for release',
+        poses: [
+          { name: 'On Knees Toes Tucked', duration: 0.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 0.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'On Knees Toes Tucked', duration: 0.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 0.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'On Knees Toes Tucked', duration: 1.5, description: 'Kneel with toes tucked under, sit back on heels.' },
+          { name: 'On Knees Feet Flat', duration: 1.5, description: 'Kneel with tops of feet flat, sit back on heels.' },
+          { name: 'Long Legged Butterfly', duration: 5, description: 'Seated with soles together, legs extended long. Fold forward.' },
+          { name: 'Sphinx', duration: 5, description: 'Forearms down, gentle backbend.' },
+          { name: 'Sphinx + Seal', duration: 5, description: 'Transition from sphinx to seal, deeper backbend.' },
+          { name: 'Childs Pose', duration: 1, description: 'Rest forehead down, knees wide or together.' },
+          { name: 'Cat Cow', duration: 1, description: 'Flow between arching and rounding spine.' },
+          { name: 'Shoelace Right Over Left Twist Right', duration: 1, description: 'Stack right knee over left, twist to the right.' },
+          { name: 'Shoelace Right Over Left Stretch Right', duration: 4, description: 'Stack right knee over left, side stretch to the right.' },
+          { name: 'Shake It Out', duration: 0.5, description: 'Release and shake out the legs.' },
+          { name: 'Shoelace Left Over Right Twist Left', duration: 1, description: 'Stack left knee over right, twist to the left.' },
+          { name: 'Shoelace Left Over Right Stretch Left', duration: 4, description: 'Stack left knee over right, side stretch to the left.' },
+          { name: 'Shake It Out', duration: 0.5, description: 'Release and shake out the legs.' },
+          { name: 'Half Pigeon Right Leg Back Chest Up', duration: 2, description: 'Right leg back, left shin forward, chest lifted.' },
+          { name: 'Half Pigeon Right Leg Back Fold Forward', duration: 4, description: 'Right leg back, left shin forward, fold over front leg.' },
+          { name: 'Half Pigeon Left Leg Back Chest Up', duration: 2, description: 'Left leg back, right shin forward, chest lifted.' },
+          { name: 'Half Pigeon Left Leg Back Fold Forward', duration: 4, description: 'Left leg back, right shin forward, fold over front leg.' },
+          { name: 'Downward Dog', duration: 2, description: 'Hands and feet down, hips high.' },
+          { name: 'Twist Left', duration: 5, description: 'On back, right leg over left, let knees fall left.' },
+          { name: 'Twist Right', duration: 5, description: 'On back, left leg over right, let knees fall right.' },
+          { name: 'Savasana', duration: 3, description: 'Final rest. Complete relaxation.' }
+        ]
+      },
+      'Upper Body': {
+        duration: 60, focus: 'Shoulders, chest, upper back, arms',
+        poses: [
+          { name: 'Melting Heart', duration: 5, description: 'Knees down, arms forward, chest melts.' },
+          { name: 'Thread the Needle - Right', duration: 5, description: 'Right arm threads under, shoulder down.' },
+          { name: 'Thread the Needle - Left', duration: 5, description: 'Left arm threads under, shoulder down.' },
+          { name: 'Broken Wing - Right', duration: 5, description: 'Lie on extended right arm, chest opens.' },
+          { name: 'Broken Wing - Left', duration: 5, description: 'Lie on extended left arm, chest opens.' },
+          { name: 'Eagle Arms - Right', duration: 5, description: 'Right arm under, wrap, lift elbows.' },
+          { name: 'Eagle Arms - Left', duration: 5, description: 'Left arm under, wrap, lift elbows.' },
+          { name: 'Sphinx', duration: 5, description: 'Forearms down, gentle backbend.' },
+          { name: 'Seal', duration: 5, description: 'Hands down, deeper backbend.' },
+          { name: 'Twisted Dragon - Right', duration: 5, description: 'Dragon with twist, right arm up.' },
+          { name: 'Twisted Dragon - Left', duration: 5, description: 'Dragon with twist, left arm up.' },
+          { name: 'Savasana', duration: 5, description: 'Rest completely. Let body integrate.' }
+        ]
+      }
+    };
+
+    // State
+    let selectedSeries = null;
+    let currentPoseIndex = 0;
+    let timeRemaining = 0;
+    let isRunning = false;
+    let isPaused = true;
+    let timerInterval = null;
+    let audioContext = null;
+    let soundEnabled = true;
+    let vibrationEnabled = true;
+
+    // Initialize
+    function init() {
+      const list = document.getElementById('series-list');
+      Object.entries(allSeries).forEach(([name, series]) => {
+        const btn = document.createElement('button');
+        btn.className = 'series-btn';
+        btn.onclick = () => startPractice(name);
+        btn.innerHTML = `
+          <div class="series-name">${name}</div>
+          <div class="series-info">${series.duration} min • ${series.poses.length} poses</div>
+          <div class="series-focus">${series.focus}</div>
+        `;
+        list.appendChild(btn);
+      });
+      loadSettings();
+    }
+
+    function loadSettings() {
+      soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+      vibrationEnabled = localStorage.getItem('vibrationEnabled') !== 'false';
+      updateSettingsUI();
+    }
+
+    function saveSettings() {
+      localStorage.setItem('soundEnabled', soundEnabled);
+      localStorage.setItem('vibrationEnabled', vibrationEnabled);
+    }
+
+    function updateSettingsUI() {
+      document.getElementById('sound-toggle').classList.toggle('on', soundEnabled);
+      document.getElementById('vibration-toggle').classList.toggle('on', vibrationEnabled);
+    }
+
+    function initAudio() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioContext.state === 'suspended') audioContext.resume();
+    }
+
+    function playBell() {
+      if (!soundEnabled) return;
+      
+      // Reinitialize audio context if needed
+      if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      
+      // Always try to resume (needed after other apps use audio)
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      
+      try {
+        const now = audioContext.currentTime;
+        
+        // Main bell tone
+        const osc1 = audioContext.createOscillator();
+        const osc2 = audioContext.createOscillator();
+        const osc3 = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        osc3.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Bell frequencies - fundamental with harmonics
+        osc1.type = 'sine';
+        osc1.frequency.value = 440; // A4
+        
+        osc2.type = 'sine';
+        osc2.frequency.value = 880; // Octave above
+        
+        osc3.type = 'sine';
+        osc3.frequency.value = 1320; // Fifth above that
+        
+        // Gentle bell envelope - quick attack, slow decay
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+        
+        osc1.start(now);
+        osc2.start(now);
+        osc3.start(now);
+        osc1.stop(now + 1.0);
+        osc2.stop(now + 1.0);
+        osc3.stop(now + 1.0);
+      } catch (e) {
+        // If audio fails, try creating fresh context next time
+        audioContext = null;
+      }
+    }
+
+    function vibrate(pattern = [200]) {
+      if (vibrationEnabled && navigator.vibrate) navigator.vibrate(pattern);
+    }
+
+    function formatTime(secs) {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function startPractice(name) {
+      initAudio();
+      selectedSeries = name;
+      currentPoseIndex = 0;
+      timeRemaining = allSeries[name].poses[0].duration * 60;
+      isRunning = true;
+      isPaused = true;
+      
+      document.getElementById('menu-view').classList.add('hidden');
+      document.getElementById('timer-view').classList.remove('hidden');
+      updateTimerUI();
+      renderDots();
+    }
+
+    function updateTimerUI() {
+      const series = allSeries[selectedSeries];
+      const pose = series.poses[currentPoseIndex];
+      const nextPose = currentPoseIndex < series.poses.length - 1 ? series.poses[currentPoseIndex + 1] : null;
+      
+      document.getElementById('current-series').textContent = selectedSeries;
+      document.getElementById('pose-counter').textContent = `${currentPoseIndex + 1} / ${series.poses.length}`;
+      document.getElementById('pose-name').textContent = pose.name;
+      document.getElementById('time-display').textContent = formatTime(timeRemaining);
+      document.getElementById('pose-desc').textContent = pose.description;
+      document.getElementById('next-pose').textContent = nextPose ? `Next: ${nextPose.name}` : '';
+      
+      const progress = ((pose.duration * 60 - timeRemaining) / (pose.duration * 60)) * 100;
+      document.getElementById('progress-fill').style.width = `${progress}%`;
+      
+      document.getElementById('play-btn').textContent = isPaused ? '▶' : '⏸';
+      document.getElementById('prev-btn').disabled = currentPoseIndex === 0;
+      document.getElementById('next-btn').disabled = currentPoseIndex === series.poses.length - 1;
+      
+      updateDots();
+    }
+
+    function renderDots() {
+      const dots = document.getElementById('pose-dots');
+      dots.innerHTML = '';
+      const poses = allSeries[selectedSeries].poses;
+      poses.forEach((_, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'pose-dot';
+        dots.appendChild(dot);
+      });
+    }
+
+    function updateDots() {
+      const dots = document.querySelectorAll('.pose-dot');
+      dots.forEach((dot, i) => {
+        dot.classList.remove('completed', 'current');
+        if (i < currentPoseIndex) dot.classList.add('completed');
+        if (i === currentPoseIndex) dot.classList.add('current');
+      });
+    }
+
+    function togglePlay() {
+      initAudio();
+      isPaused = !isPaused;
+      if (!isPaused) {
+        timerInterval = setInterval(tick, 1000);
+      } else {
+        clearInterval(timerInterval);
+      }
+      updateTimerUI();
+    }
+
+    function tick() {
+      if (isPaused) return;
+      
+      timeRemaining--;
+      
+      if (timeRemaining <= 0) {
+        const poses = allSeries[selectedSeries].poses;
+        if (currentPoseIndex < poses.length - 1) {
+          playBell();
+          vibrate([200, 100, 200]);
+          currentPoseIndex++;
+          timeRemaining = poses[currentPoseIndex].duration * 60;
+        } else {
+          // Complete
+          playBell();
+          vibrate([200, 100, 200, 100, 400]);
+          clearInterval(timerInterval);
+          isPaused = true;
+        }
+      }
+      
+      updateTimerUI();
+    }
+
+    function skipPose() {
+      const poses = allSeries[selectedSeries].poses;
+      if (currentPoseIndex < poses.length - 1) {
+        playBell();
+        currentPoseIndex++;
+        timeRemaining = poses[currentPoseIndex].duration * 60;
+        updateTimerUI();
+      }
+    }
+
+    function prevPose() {
+      if (currentPoseIndex > 0) {
+        playBell();
+        currentPoseIndex--;
+        timeRemaining = allSeries[selectedSeries].poses[currentPoseIndex].duration * 60;
+        updateTimerUI();
+      }
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      isRunning = false;
+      isPaused = true;
+      selectedSeries = null;
+      document.getElementById('timer-view').classList.add('hidden');
+      document.getElementById('menu-view').classList.remove('hidden');
+    }
+
+    function showSettings() {
+      document.getElementById('menu-view').classList.add('hidden');
+      document.getElementById('timer-view').classList.add('hidden');
+      document.getElementById('settings-view').classList.remove('hidden');
+      updateSettingsUI();
+    }
+
+    function hideSettings() {
+      document.getElementById('settings-view').classList.add('hidden');
+      if (selectedSeries) {
+        document.getElementById('timer-view').classList.remove('hidden');
+      } else {
+        document.getElementById('menu-view').classList.remove('hidden');
+      }
+      saveSettings();
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      updateSettingsUI();
+    }
+
+    function toggleVibration() {
+      vibrationEnabled = !vibrationEnabled;
+      updateSettingsUI();
+    }
+
+    // Request wake lock to prevent screen from sleeping
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+      requestWakeLock();
+    });
+  </script>
+</body>
+</html>
