@@ -72,6 +72,14 @@
     }
     .credit { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
     .hidden { display: none !important; }
+    .history-btn { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 8px; }
+    .history-list { margin-top: 16px; }
+    .history-item {
+      background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 12px;
+    }
+    .history-date { color: #94a3b8; font-size: 12px; margin-bottom: 4px; }
+    .history-name { font-size: 16px; font-weight: 500; }
+    .empty-history { color: #64748b; text-align: center; padding: 32px; }
   </style>
 </head>
 <body>
@@ -80,7 +88,10 @@
     <div id="menu-view">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
         <h1>Yin Yoga Timer</h1>
-        <button class="settings-btn" onclick="showSettings()">⚙️</button>
+        <div>
+          <button class="history-btn" onclick="showHistory()">📋</button>
+          <button class="settings-btn" onclick="showSettings()">⚙️</button>
+        </div>
       </div>
       <p class="subtitle">5 minutes per pose. Select a series to begin.</p>
       <div id="series-list"></div>
@@ -128,6 +139,17 @@
         </div>
         <button class="done-btn" onclick="hideSettings()">Done</button>
       </div>
+    </div>
+
+    <!-- History View -->
+    <div id="history-view" class="hidden">
+      <div class="header">
+        <button class="back-btn" onclick="hideHistory()">← Back</button>
+        <span></span>
+        <span></span>
+      </div>
+      <h2>Session History</h2>
+      <div id="history-list" class="history-list"></div>
     </div>
   </div>
 
@@ -252,10 +274,12 @@
     let soundEnabled = true;
     let vibrationEnabled = true;
     let completionCounts = {};
+    let sessionHistory = [];
 
     // Initialize
     function init() {
       loadCompletionCounts();
+      loadSessionHistory();
       const list = document.getElementById('series-list');
       Object.entries(allSeries).forEach(([name, series]) => {
         const btn = document.createElement('button');
@@ -286,9 +310,29 @@
       } catch (e) {}
     }
 
+    function loadSessionHistory() {
+      try {
+        const saved = localStorage.getItem('sessionHistory');
+        if (saved) sessionHistory = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    function saveSessionHistory() {
+      try {
+        localStorage.setItem('sessionHistory', JSON.stringify(sessionHistory));
+      } catch (e) {}
+    }
+
     function incrementCompletion(seriesName) {
       completionCounts[seriesName] = (completionCounts[seriesName] || 0) + 1;
       saveCompletionCounts();
+
+      // Add to session history
+      sessionHistory.unshift({
+        name: seriesName,
+        date: new Date().toISOString()
+      });
+      saveSessionHistory();
       // Update button display
       const btn = document.getElementById('btn-' + seriesName.replace(/\s+/g, '-'));
       if (btn) {
@@ -532,6 +576,44 @@
     function toggleVibration() {
       vibrationEnabled = !vibrationEnabled;
       updateSettingsUI();
+    }
+
+    function showHistory() {
+      document.getElementById('menu-view').classList.add('hidden');
+      document.getElementById('timer-view').classList.add('hidden');
+      document.getElementById('settings-view').classList.add('hidden');
+      document.getElementById('history-view').classList.remove('hidden');
+      renderHistory();
+    }
+
+    function hideHistory() {
+      document.getElementById('history-view').classList.add('hidden');
+      document.getElementById('menu-view').classList.remove('hidden');
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      if (sessionHistory.length === 0) {
+        list.innerHTML = '<p class="empty-history">No sessions completed yet.<br>Complete a practice to see it here!</p>';
+        return;
+      }
+      list.innerHTML = sessionHistory.map(session => {
+        const date = new Date(session.date);
+        const formatted = date.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+        return `
+          <div class="history-item">
+            <div class="history-date">${formatted}</div>
+            <div class="history-name">${session.name}</div>
+          </div>
+        `;
+      }).join('');
     }
 
     // Request wake lock to prevent screen from sleeping
