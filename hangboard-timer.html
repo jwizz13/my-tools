@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hangboard">
+  <title>Hangboard Timer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: white;
+      min-height: 100vh;
+      padding: 16px;
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+    .container { max-width: 400px; margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 300; margin-bottom: 8px; }
+    h2 { font-size: 28px; font-weight: 300; margin-bottom: 16px; }
+    .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+    .routine-btn {
+      width: 100%; padding: 16px; margin-bottom: 12px;
+      background: #1e293b; border: none; border-radius: 12px;
+      color: white; text-align: left; cursor: pointer;
+    }
+    .routine-btn:active { background: #334155; }
+    .routine-name { font-size: 18px; font-weight: 500; }
+    .routine-info { font-size: 14px; color: #94a3b8; margin-top: 4px; }
+    .routine-detail { font-size: 12px; color: #f97316; margin-top: 4px; }
+    .timer-view { display: flex; flex-direction: column; min-height: calc(100vh - 32px); }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .back-btn, .settings-btn {
+      background: none; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; padding: 8px;
+    }
+    .phase-info { color: #94a3b8; font-size: 14px; }
+    .current-routine { text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 8px; }
+    .timer-main { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+    .phase-name { font-size: 32px; font-weight: 500; margin-bottom: 8px; }
+    .phase-name.hang { color: #f97316; }
+    .phase-name.rest { color: #22c55e; }
+    .phase-name.warmup { color: #3b82f6; }
+    .phase-name.getready { color: #eab308; }
+    .grip-name { font-size: 18px; color: #94a3b8; margin-bottom: 16px; }
+    .time-display { font-size: 96px; font-weight: 200; font-family: 'SF Mono', Monaco, monospace; margin-bottom: 16px; }
+    .time-display.hang { color: #f97316; }
+    .time-display.rest { color: #22c55e; }
+    .set-rep-info { font-size: 20px; color: #94a3b8; margin-bottom: 24px; }
+    .progress-bar { width: 100%; height: 8px; background: #334155; border-radius: 4px; margin-bottom: 16px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #f97316; transition: width 0.3s linear; }
+    .controls { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 24px 0; }
+    .control-btn {
+      width: 56px; height: 56px; border-radius: 50%; border: none;
+      background: #334155; color: white; font-size: 20px; cursor: pointer;
+    }
+    .control-btn:disabled { opacity: 0.3; }
+    .play-btn { width: 80px; height: 80px; background: #f97316; font-size: 28px; }
+    .settings-panel { padding: 24px 0; }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .toggle { width: 56px; height: 32px; border-radius: 16px; border: none; background: #334155; cursor: pointer; position: relative; }
+    .toggle.on { background: #f97316; }
+    .toggle-knob {
+      width: 24px; height: 24px; border-radius: 50%; background: white;
+      position: absolute; top: 4px; left: 4px; transition: transform 0.2s;
+    }
+    .toggle.on .toggle-knob { transform: translateX(24px); }
+    .done-btn {
+      width: 100%; padding: 16px; margin-top: 32px;
+      background: #334155; border: none; border-radius: 12px;
+      color: white; font-size: 16px; cursor: pointer;
+    }
+    .credit { text-align: center; color: #64748b; font-size: 12px; margin-top: 24px; }
+    .hidden { display: none !important; }
+    .history-btn { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 8px; }
+    .history-list { margin-top: 16px; }
+    .history-item {
+      background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 12px;
+    }
+    .history-date { color: #94a3b8; font-size: 12px; margin-bottom: 4px; }
+    .history-name { font-size: 16px; font-weight: 500; }
+    .empty-history { color: #64748b; text-align: center; padding: 32px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Menu View -->
+    <div id="menu-view">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h1>Hangboard Timer</h1>
+        <div>
+          <button class="history-btn" onclick="showHistory()">📋</button>
+          <button class="settings-btn" onclick="showSettings()">⚙️</button>
+        </div>
+      </div>
+      <p class="subtitle">Select a routine to begin.</p>
+      <div id="routine-list"></div>
+      <p class="credit">Train hard, climb harder</p>
+    </div>
+
+    <!-- Timer View -->
+    <div id="timer-view" class="timer-view hidden">
+      <div class="header">
+        <button class="back-btn" onclick="resetTimer()">← Back</button>
+        <span class="phase-info" id="phase-info"></span>
+        <button class="settings-btn" onclick="showSettings()">⚙️</button>
+      </div>
+      <div class="current-routine" id="current-routine"></div>
+      <div class="timer-main">
+        <div class="phase-name" id="phase-name">Warmup</div>
+        <div class="grip-name" id="grip-name"></div>
+        <div class="time-display" id="time-display">5:00</div>
+        <div class="set-rep-info" id="set-rep-info"></div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <div class="controls">
+        <button class="control-btn" id="skip-btn" onclick="skipPhase()">⏭</button>
+        <button class="control-btn play-btn" id="play-btn" onclick="togglePlay()">▶</button>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div id="settings-view" class="hidden">
+      <h2>Settings</h2>
+      <div class="settings-panel">
+        <div class="setting-row">
+          <span>Sound Alerts</span>
+          <button class="toggle" id="sound-toggle" onclick="toggleSound()">
+            <div class="toggle-knob"></div>
+          </button>
+        </div>
+        <div class="setting-row">
+          <span>Vibration</span>
+          <button class="toggle" id="vibration-toggle" onclick="toggleVibration()">
+            <div class="toggle-knob"></div>
+          </button>
+        </div>
+        <button class="done-btn" onclick="hideSettings()">Done</button>
+      </div>
+    </div>
+
+    <!-- History View -->
+    <div id="history-view" class="hidden">
+      <div class="header">
+        <button class="back-btn" onclick="hideHistory()">← Back</button>
+        <span></span>
+        <span></span>
+      </div>
+      <h2>Session History</h2>
+      <div id="history-list" class="history-list"></div>
+    </div>
+  </div>
+
+  <script>
+    // Routine definitions
+    const routines = {
+      '20mm + Slopers': {
+        duration: 27,
+        grips: ['20mm Edge', 'Slopers'],
+        description: '3 sets each grip • 7s hang / 3s rest'
+      },
+      '20mm + 2-Finger Pockets': {
+        duration: 27,
+        grips: ['20mm Edge', '2-Finger Pockets'],
+        description: '3 sets each grip • 7s hang / 3s rest'
+      }
+    };
+
+    // Timing constants
+    const WARMUP_SECONDS = 300; // 5 minutes
+    const GET_READY_SECONDS = 5;
+    const HANG_SECONDS = 7;
+    const REP_REST_SECONDS = 3;
+    const SET_REST_SECONDS = 180; // 3 minutes
+    const REPS_PER_SET = 6;
+    const SETS_PER_GRIP = 3;
+
+    // State
+    let selectedRoutine = null;
+    let currentPhase = null; // 'warmup', 'getready', 'hang', 'represt', 'setrest'
+    let currentGripIndex = 0;
+    let currentSet = 1;
+    let currentRep = 1;
+    let timeRemaining = 0;
+    let totalPhases = 0;
+    let currentPhaseIndex = 0;
+    let isRunning = false;
+    let isPaused = true;
+    let timerInterval = null;
+    let audioContext = null;
+    let soundEnabled = true;
+    let vibrationEnabled = true;
+    let completionCounts = {};
+    let sessionHistory = [];
+
+    // Initialize
+    function init() {
+      loadCompletionCounts();
+      loadSessionHistory();
+      const list = document.getElementById('routine-list');
+      Object.entries(routines).forEach(([name, routine]) => {
+        const btn = document.createElement('button');
+        btn.className = 'routine-btn';
+        btn.onclick = () => startRoutine(name);
+        const count = completionCounts[name] || 0;
+        btn.innerHTML = `
+          <div class="routine-name">${name}</div>
+          <div class="routine-info">~${routine.duration} min • <span style="color:#f97316">${count} completed</span></div>
+          <div class="routine-detail">${routine.description}</div>
+        `;
+        btn.id = 'btn-' + name.replace(/\s+/g, '-');
+        list.appendChild(btn);
+      });
+      loadSettings();
+    }
+
+    function loadCompletionCounts() {
+      try {
+        const saved = localStorage.getItem('hangboardCompletionCounts');
+        if (saved) completionCounts = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    function saveCompletionCounts() {
+      try {
+        localStorage.setItem('hangboardCompletionCounts', JSON.stringify(completionCounts));
+      } catch (e) {}
+    }
+
+    function loadSessionHistory() {
+      try {
+        const saved = localStorage.getItem('hangboardSessionHistory');
+        if (saved) sessionHistory = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    function saveSessionHistory() {
+      try {
+        localStorage.setItem('hangboardSessionHistory', JSON.stringify(sessionHistory));
+      } catch (e) {}
+    }
+
+    function incrementCompletion(routineName) {
+      completionCounts[routineName] = (completionCounts[routineName] || 0) + 1;
+      saveCompletionCounts();
+
+      sessionHistory.unshift({
+        name: routineName,
+        date: new Date().toISOString()
+      });
+      saveSessionHistory();
+
+      const btn = document.getElementById('btn-' + routineName.replace(/\s+/g, '-'));
+      if (btn) {
+        const routine = routines[routineName];
+        const count = completionCounts[routineName];
+        btn.innerHTML = `
+          <div class="routine-name">${routineName}</div>
+          <div class="routine-info">~${routine.duration} min • <span style="color:#f97316">${count} completed</span></div>
+          <div class="routine-detail">${routine.description}</div>
+        `;
+      }
+    }
+
+    function loadSettings() {
+      soundEnabled = localStorage.getItem('hangboardSoundEnabled') !== 'false';
+      vibrationEnabled = localStorage.getItem('hangboardVibrationEnabled') !== 'false';
+      updateSettingsUI();
+    }
+
+    function saveSettings() {
+      localStorage.setItem('hangboardSoundEnabled', soundEnabled);
+      localStorage.setItem('hangboardVibrationEnabled', vibrationEnabled);
+    }
+
+    function updateSettingsUI() {
+      document.getElementById('sound-toggle').classList.toggle('on', soundEnabled);
+      document.getElementById('vibration-toggle').classList.toggle('on', vibrationEnabled);
+    }
+
+    function initAudio() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioContext.state === 'suspended') audioContext.resume();
+    }
+
+    function playBell() {
+      if (!soundEnabled) return;
+
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2LkpGKgHVsZWRlbnmDjJKRjIF1amFdYWp0gIqRkY2CdmtjX19ncHyGjo+MgXZrYl5dZG53goyOi4N4bWVgYGVseYSMjYqDd21lYWFmbXmEi42KhHhuZWJiZm15hIuMiYR4bmZjY2dudoKKi4mEeG5mY2RnbneCiouIhHhuZmRkaG94goqKiIR4bmZlZWhveIKJiYeEeG5mZWZpb3iBiYmHhHhuZmVmaW94gYmIhoR4bmZmZmpwd4GJiIaEeG9mZmdqcHeBiIiGhHhvZ2doandxgYiHhoR4b2dnZ2pxdoGIh4aEeG9naGhrcHaBiIeGhHlwZ2hoa3B2gYiHhoR5cGhoaGtwd4GIh4aEeXBoaGhrcHeBh4eGhHlwaGhoaW9wdX+Gh4WDeHBoaGhpb3B1f4aHhYN4cGhoaGlvcHV/hYaFg3hwaGhoaW9vdX+FhoWDeHBoaGhpb3B1foWGhYN4cGhoaGlvb3V+hYWFg3hwaGhoaW9wdX6FhYWDeXFoaWlpb291fn+FhIN4cGhoaWpvb3V+f4WEg3lxaWlpam9vdX5/hYSDd3BoaGlqb291fn+FhIN3cGhpaWpub3V+f4SDg3dwaWlpam5vdX5/hIODd3BpaWlqbm91fn6Eg4N3cGlpaWpub3V+foSDg3dwaWlpam5udH1+hIOCd3BpaWlqbm90fX6Dg4J3cGlpaWpubXR9fYODgndwaWlpam5tdH19g4OCd3BpaWlqbm10fX2Dg4J3cGlpaWpubHN8fIKCgXZwaWlpamxtc3x8goKBdnBpaWlqbGxzfHyCgoF2cGlpaWpsbHN8fIKCgXZwaWlpamxsc3t8goKBdnBpaWlqbGxze3yCgYF2cGlpaWpsbHN7fIKBgXZwaWlpamxscnt7gYGBdnBpaWlqbGtye3uBgYF2cGlpaWpramxye3qBgYF2cGlpaWpqbHJ7eoGBgXZwaWlpampscnt6gYGBdnBpaWlqamxye3qBgYF2cGlpamtqbHJ6eoGBgHZwaWlqa2prcnp6gYGAdnBpaWpramtxenqBgIB1cGlpamtqa3F6eoGAgHVwaWlqa2prcXl5gIB/dXBpaWpramtxeXmAgH91cGlpamtqa3F5eYCAf3VwaWpqa2trcXh5gIB/dXBpamtramtweHl/f391cGlqa2traXB4eX9/f3VwaWpra2tpcHh5f39/dXBpamtra2lweHh/f391cGlqa2traXB4eH9/f3VwaWpra2tpcHh4f39/dXBpamtra2pvcHh4f35+dHBpamxramtvcHd4fn5+dHBpamxramtvcHd3fn5+dHBpamxramtwdnd+fn50cGlqbGtqa294d35+fnRwaWpsampqb3d3fX5+dHBpamxqamtud3d9fn50cGlqbGpqa253d31+fnRwaWpsamprbnZ3fX19dHBpamxqa2tudnd9fX10cGlqbGpra253dnx9fXRwaWpsamtrbnZ2fH19dHBpamxqa2tudnZ8fX10cGlqbGpra252dnx9fHNwaWpsamtrbXV2fHx8c3BpamxramttdXV8fHxzcGlqbGtqa211dXx8fHNwaWpsa2trbXV1e3x8c3BpamxramttdHV7e3tzcGlqbGtqa2x0dXt7e3NwaWpsa2prbHR0e3t7c3BpamxramtsdHR7e3tzcGlqbGtqa2x0dHt7e3NwaWpsa2prbHN0e3t7c3BpamxramtsdHR6e3tzcGlqbGtqa2xzdHp7e3NwaWpsa2prbHN0ent7c3BpamxramtsdHR6enp=');
+        audio.volume = 0.5;
+        audio.play().catch(e => {});
+      } catch (e) {}
+
+      try {
+        if (!audioContext || audioContext.state === 'closed') {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+
+        const now = audioContext.currentTime;
+        const osc1 = audioContext.createOscillator();
+        const osc2 = audioContext.createOscillator();
+        const osc3 = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        osc3.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        osc1.type = 'sine';
+        osc1.frequency.value = 440;
+        osc2.type = 'sine';
+        osc2.frequency.value = 880;
+        osc3.type = 'sine';
+        osc3.frequency.value = 1320;
+
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc3.start(now);
+        osc1.stop(now + 1.0);
+        osc2.stop(now + 1.0);
+        osc3.stop(now + 1.0);
+      } catch (e) {
+        audioContext = null;
+      }
+    }
+
+    function vibrate(pattern = [200]) {
+      if (vibrationEnabled && navigator.vibrate) navigator.vibrate(pattern);
+    }
+
+    function formatTime(secs) {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function startRoutine(name) {
+      initAudio();
+      selectedRoutine = name;
+      currentGripIndex = 0;
+      currentSet = 1;
+      currentRep = 1;
+      currentPhase = 'warmup';
+      timeRemaining = WARMUP_SECONDS;
+      isRunning = true;
+      isPaused = true;
+
+      // Calculate total phases for progress
+      // warmup + (getready + 6*(hang+rest) + setrest) * 3 * 2 grips - last setrest
+      totalPhases = 1 + (1 + REPS_PER_SET * 2 + 1) * SETS_PER_GRIP * 2 - 1;
+      currentPhaseIndex = 0;
+
+      document.getElementById('menu-view').classList.add('hidden');
+      document.getElementById('timer-view').classList.remove('hidden');
+      updateTimerUI();
+    }
+
+    function updateTimerUI() {
+      const routine = routines[selectedRoutine];
+      const grip = routine.grips[currentGripIndex];
+
+      document.getElementById('current-routine').textContent = selectedRoutine;
+
+      const phaseEl = document.getElementById('phase-name');
+      const timeEl = document.getElementById('time-display');
+      const gripEl = document.getElementById('grip-name');
+      const setRepEl = document.getElementById('set-rep-info');
+
+      // Reset classes
+      phaseEl.className = 'phase-name';
+      timeEl.className = 'time-display';
+
+      switch (currentPhase) {
+        case 'warmup':
+          phaseEl.textContent = 'WARMUP';
+          phaseEl.classList.add('warmup');
+          gripEl.textContent = 'Get loose, shake it out';
+          setRepEl.textContent = '';
+          break;
+        case 'getready':
+          phaseEl.textContent = 'GET READY';
+          phaseEl.classList.add('getready');
+          gripEl.textContent = grip;
+          setRepEl.textContent = `Set ${currentSet}/${SETS_PER_GRIP}`;
+          break;
+        case 'hang':
+          phaseEl.textContent = 'HANG';
+          phaseEl.classList.add('hang');
+          timeEl.classList.add('hang');
+          gripEl.textContent = grip;
+          setRepEl.textContent = `Set ${currentSet}/${SETS_PER_GRIP} • Rep ${currentRep}/${REPS_PER_SET}`;
+          break;
+        case 'represt':
+          phaseEl.textContent = 'REST';
+          phaseEl.classList.add('rest');
+          timeEl.classList.add('rest');
+          gripEl.textContent = grip;
+          setRepEl.textContent = `Set ${currentSet}/${SETS_PER_GRIP} • Rep ${currentRep}/${REPS_PER_SET}`;
+          break;
+        case 'setrest':
+          phaseEl.textContent = 'REST';
+          phaseEl.classList.add('rest');
+          timeEl.classList.add('rest');
+          if (currentSet < SETS_PER_GRIP) {
+            gripEl.textContent = `Next: ${grip} Set ${currentSet + 1}`;
+          } else if (currentGripIndex < routine.grips.length - 1) {
+            gripEl.textContent = `Next: ${routine.grips[currentGripIndex + 1]}`;
+          } else {
+            gripEl.textContent = 'Almost done!';
+          }
+          setRepEl.textContent = '';
+          break;
+      }
+
+      document.getElementById('time-display').textContent = formatTime(timeRemaining);
+      document.getElementById('phase-info').textContent = `Grip ${currentGripIndex + 1}/${routine.grips.length}`;
+
+      // Progress bar
+      const progress = (currentPhaseIndex / totalPhases) * 100;
+      document.getElementById('progress-fill').style.width = `${progress}%`;
+
+      document.getElementById('play-btn').textContent = isPaused ? '▶' : '⏸';
+    }
+
+    function togglePlay() {
+      initAudio();
+      isPaused = !isPaused;
+      if (!isPaused) {
+        timerInterval = setInterval(tick, 1000);
+      } else {
+        clearInterval(timerInterval);
+      }
+      updateTimerUI();
+    }
+
+    function tick() {
+      if (isPaused) return;
+
+      timeRemaining--;
+
+      if (timeRemaining <= 0) {
+        advancePhase();
+      }
+
+      updateTimerUI();
+    }
+
+    function advancePhase() {
+      playBell();
+      vibrate([200, 100, 200]);
+      currentPhaseIndex++;
+
+      const routine = routines[selectedRoutine];
+
+      switch (currentPhase) {
+        case 'warmup':
+          currentPhase = 'getready';
+          timeRemaining = GET_READY_SECONDS;
+          break;
+
+        case 'getready':
+          currentPhase = 'hang';
+          currentRep = 1;
+          timeRemaining = HANG_SECONDS;
+          break;
+
+        case 'hang':
+          currentPhase = 'represt';
+          timeRemaining = REP_REST_SECONDS;
+          break;
+
+        case 'represt':
+          if (currentRep < REPS_PER_SET) {
+            currentRep++;
+            currentPhase = 'hang';
+            timeRemaining = HANG_SECONDS;
+          } else {
+            // End of set
+            if (currentSet < SETS_PER_GRIP) {
+              currentPhase = 'setrest';
+              timeRemaining = SET_REST_SECONDS;
+            } else if (currentGripIndex < routine.grips.length - 1) {
+              // Switch to next grip
+              currentPhase = 'setrest';
+              timeRemaining = SET_REST_SECONDS;
+            } else {
+              // Workout complete!
+              completeWorkout();
+              return;
+            }
+          }
+          break;
+
+        case 'setrest':
+          if (currentSet < SETS_PER_GRIP) {
+            currentSet++;
+          } else {
+            currentGripIndex++;
+            currentSet = 1;
+          }
+          currentPhase = 'getready';
+          timeRemaining = GET_READY_SECONDS;
+          break;
+      }
+    }
+
+    function skipPhase() {
+      timeRemaining = 1;
+      tick();
+    }
+
+    function completeWorkout() {
+      playBell();
+      vibrate([200, 100, 200, 100, 400]);
+      clearInterval(timerInterval);
+      isPaused = true;
+      incrementCompletion(selectedRoutine);
+
+      document.getElementById('phase-name').textContent = 'COMPLETE!';
+      document.getElementById('phase-name').className = 'phase-name';
+      document.getElementById('grip-name').textContent = 'Great session!';
+      document.getElementById('set-rep-info').textContent = '';
+      document.getElementById('time-display').textContent = '💪';
+      document.getElementById('progress-fill').style.width = '100%';
+    }
+
+    function resetTimer() {
+      clearInterval(timerInterval);
+      isRunning = false;
+      isPaused = true;
+      selectedRoutine = null;
+      document.getElementById('timer-view').classList.add('hidden');
+      document.getElementById('menu-view').classList.remove('hidden');
+    }
+
+    function showSettings() {
+      document.getElementById('menu-view').classList.add('hidden');
+      document.getElementById('timer-view').classList.add('hidden');
+      document.getElementById('settings-view').classList.remove('hidden');
+      updateSettingsUI();
+    }
+
+    function hideSettings() {
+      document.getElementById('settings-view').classList.add('hidden');
+      if (selectedRoutine) {
+        document.getElementById('timer-view').classList.remove('hidden');
+      } else {
+        document.getElementById('menu-view').classList.remove('hidden');
+      }
+      saveSettings();
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      updateSettingsUI();
+    }
+
+    function toggleVibration() {
+      vibrationEnabled = !vibrationEnabled;
+      updateSettingsUI();
+    }
+
+    function showHistory() {
+      document.getElementById('menu-view').classList.add('hidden');
+      document.getElementById('timer-view').classList.add('hidden');
+      document.getElementById('settings-view').classList.add('hidden');
+      document.getElementById('history-view').classList.remove('hidden');
+      renderHistory();
+    }
+
+    function hideHistory() {
+      document.getElementById('history-view').classList.add('hidden');
+      document.getElementById('menu-view').classList.remove('hidden');
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      if (sessionHistory.length === 0) {
+        list.innerHTML = '<p class="empty-history">No sessions completed yet.<br>Complete a workout to see it here!</p>';
+        return;
+      }
+      list.innerHTML = sessionHistory.map(session => {
+        const date = new Date(session.date);
+        const formatted = date.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+        return `
+          <div class="history-item">
+            <div class="history-date">${formatted}</div>
+            <div class="history-name">${session.name}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+      requestWakeLock();
+    });
+  </script>
+</body>
+</html>
